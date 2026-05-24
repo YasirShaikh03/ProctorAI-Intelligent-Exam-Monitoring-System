@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ProctorAI — Intelligent Exam Monitoring</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <!-- Face API -->
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+</head>
+<body>
+
+<!-- ========== PARTICLE BACKGROUND ========== -->
+<canvas id="particleCanvas"></canvas>
+
+<!-- ========== LOADING SCREEN ========== -->
+<div id="loadingScreen" class="screen active">
+  <div class="loading-content">
+    <div class="ai-logo">
+      <div class="logo-ring ring1"></div>
+      <div class="logo-ring ring2"></div>
+      <div class="logo-ring ring3"></div>
+      <div class="logo-core">
+        <svg viewBox="0 0 40 40" fill="none">
+          <circle cx="20" cy="20" r="8" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M20 4v4M20 32v4M4 20h4M32 20h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M8.686 8.686l2.828 2.828M28.486 28.486l2.828 2.828M28.486 11.514l-2.828 2.828M11.514 28.486l-2.828 2.828" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+    <div class="loading-text">
+      <span class="brand">PROCTOR<span class="accent">AI</span></span>
+      <span class="tagline">Intelligent Examination Monitoring</span>
+    </div>
+    <div class="loading-bar-wrap">
+      <div class="loading-bar"><div class="loading-fill" id="loadingFill"></div></div>
+      <span class="loading-status" id="loadingStatus">Initializing systems…</span>
+    </div>
+    <div class="loading-checklist" id="loadingChecklist">
+      <div class="check-item" id="chk-models"><span class="chk-dot"></span>Loading AI face models</div>
+      <div class="check-item" id="chk-cam"><span class="chk-dot"></span>Requesting camera access</div>
+      <div class="check-item" id="chk-mic"><span class="chk-dot"></span>Requesting microphone</div>
+      <div class="check-item" id="chk-env"><span class="chk-dot"></span>Scanning environment</div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== LOGIN SCREEN ========== -->
+<div id="loginScreen" class="screen">
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-logo">
+          <div class="logo-pulse"></div>
+          <svg viewBox="0 0 48 48" fill="none" width="48" height="48">
+            <circle cx="24" cy="24" r="10" stroke="var(--cyan)" stroke-width="1.5"/>
+            <circle cx="24" cy="24" r="18" stroke="var(--purple)" stroke-width="0.75" stroke-dasharray="4 4"/>
+            <path d="M24 6v6M24 36v6M6 24h6M36 24h6" stroke="var(--cyan)" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h1>PROCTOR<span class="accent">AI</span></h1>
+        <p class="subtitle">Neural-Enhanced Examination Security</p>
+      </div>
+
+      <div class="login-form">
+        <div class="form-field">
+          <label>STUDENT IDENTIFIER</label>
+          <input type="text" id="studentName" placeholder="Enter your full name" autocomplete="off" />
+        </div>
+        <div class="form-field">
+          <label>EXAM CODE</label>
+          <input type="text" id="examCode" placeholder="e.g. CS-2026-FINAL" autocomplete="off" />
+        </div>
+        <div class="form-field">
+          <label>EXAM DURATION</label>
+          <select id="examDuration">
+            <option value="10">10 Minutes (Demo)</option>
+            <option value="30">30 Minutes</option>
+            <option value="60" selected>60 Minutes</option>
+            <option value="90">90 Minutes</option>
+            <option value="120">120 Minutes</option>
+          </select>
+        </div>
+
+        <div class="consent-box">
+          <label class="consent-label">
+            <input type="checkbox" id="consentCheck" />
+            <span class="checkmark"></span>
+            <span>I consent to webcam/microphone monitoring and agree to the exam integrity policy.</span>
+          </label>
+        </div>
+
+        <button class="btn-start" id="btnStart" disabled>
+          <span class="btn-text">INITIALIZE MONITORING</span>
+          <span class="btn-glow"></span>
+        </button>
+      </div>
+
+      <div class="login-features">
+        <div class="feat"><span>🤖</span> AI Face Detection</div>
+        <div class="feat"><span>🎙️</span> Noise Monitoring</div>
+        <div class="feat"><span>📹</span> Screen Recording</div>
+        <div class="feat"><span>🛡️</span> Anti-Cheat Engine</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== EXAM DASHBOARD ========== -->
+<div id="examScreen" class="screen">
+  <!-- Top HUD Bar -->
+  <header class="hud-bar">
+    <div class="hud-left">
+      <span class="hud-brand">PROCTOR<span class="accent">AI</span></span>
+      <div class="hud-student">
+        <span class="hud-label">CANDIDATE</span>
+        <span id="hudStudentName" class="hud-value">—</span>
+      </div>
+      <div class="hud-exam">
+        <span class="hud-label">EXAM</span>
+        <span id="hudExamCode" class="hud-value">—</span>
+      </div>
+    </div>
+    <div class="hud-center">
+      <div class="timer-wrap">
+        <div class="timer-label">TIME REMAINING</div>
+        <div id="timerDisplay" class="timer-display">00:00</div>
+        <div class="timer-bar"><div id="timerBarFill" class="timer-bar-fill"></div></div>
+      </div>
+    </div>
+    <div class="hud-right">
+      <div class="hud-stat warn-count">
+        <span class="stat-num" id="hudWarnings">0</span>
+        <span class="stat-label">WARNINGS</span>
+      </div>
+      <div class="hud-stat">
+        <span class="stat-num" id="hudEvents">0</span>
+        <span class="stat-label">EVENTS</span>
+      </div>
+      <div class="rec-indicator" id="recIndicator">
+        <span class="rec-dot"></span> REC
+      </div>
+      <button class="btn-submit" id="btnSubmit">SUBMIT EXAM</button>
+    </div>
+  </header>
+
+  <!-- Main Grid -->
+  <main class="dashboard-grid">
+
+    <!-- LEFT: Webcam Panel -->
+    <section class="panel cam-panel">
+      <div class="panel-header">
+        <span class="panel-title">VISUAL SURVEILLANCE</span>
+        <div class="panel-indicators">
+          <span class="indicator" id="faceIndicator">SCANNING…</span>
+        </div>
+      </div>
+      <div class="webcam-container">
+        <video id="webcamVideo" autoplay muted playsinline></video>
+        <canvas id="faceCanvas"></canvas>
+        <div class="cam-overlay-tl"></div>
+        <div class="cam-overlay-tr"></div>
+        <div class="cam-overlay-bl"></div>
+        <div class="cam-overlay-br"></div>
+        <div class="scan-line" id="scanLine"></div>
+        <div class="cam-status" id="camStatus">
+          <span class="cam-status-dot"></span>
+          <span id="camStatusText">LIVE</span>
+        </div>
+      </div>
+      <div class="face-stats">
+        <div class="face-stat">
+          <span class="fs-label">FACES DETECTED</span>
+          <span class="fs-val" id="faceCount">0</span>
+        </div>
+        <div class="face-stat">
+          <span class="fs-label">CONFIDENCE</span>
+          <span class="fs-val" id="faceConfidence">—%</span>
+        </div>
+        <div class="face-stat">
+          <span class="fs-label">FACE STATUS</span>
+          <span class="fs-val status-ok" id="faceStatus">OK</span>
+        </div>
+      </div>
+
+      <!-- Snapshot gallery -->
+      <div class="snap-header">
+        <span>EVIDENCE SNAPSHOTS</span>
+        <span id="snapCount" class="snap-count">0 captured</span>
+      </div>
+      <div class="snap-gallery" id="snapGallery"></div>
+    </section>
+
+    <!-- CENTER: Exam Content + Risk Meter -->
+    <section class="panel exam-panel">
+      <div class="panel-header">
+        <span class="panel-title">EXAMINATION INTERFACE</span>
+      </div>
+
+      <!-- Risk Score Meter -->
+      <div class="risk-section">
+        <div class="risk-meter-wrap">
+          <svg class="risk-svg" viewBox="0 0 200 120">
+            <defs>
+              <linearGradient id="riskGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#00f5a0"/>
+                <stop offset="50%" stop-color="#f5a623"/>
+                <stop offset="100%" stop-color="#ff2d55"/>
+              </linearGradient>
+            </defs>
+            <!-- Arc track -->
+            <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="16" stroke-linecap="round"/>
+            <!-- Arc fill -->
+            <path id="riskArc" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#riskGrad)" stroke-width="16" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="251"/>
+            <!-- Needle -->
+            <line id="riskNeedle" x1="100" y1="100" x2="100" y2="28" stroke="white" stroke-width="2" stroke-linecap="round" transform="rotate(0, 100, 100)"/>
+            <circle cx="100" cy="100" r="5" fill="white"/>
+          </svg>
+          <div class="risk-value-wrap">
+            <span id="riskScore" class="risk-score">0</span>
+            <span class="risk-unit">/ 100</span>
+          </div>
+          <div id="riskLabel" class="risk-label safe">● SAFE</div>
+        </div>
+        <div class="risk-breakdown">
+          <div class="rb-item">
+            <span>Tab Switches</span>
+            <span id="rb-tab" class="rb-val">+0</span>
+          </div>
+          <div class="rb-item">
+            <span>No Face</span>
+            <span id="rb-noface" class="rb-val">+0</span>
+          </div>
+          <div class="rb-item">
+            <span>Multi-Face</span>
+            <span id="rb-multiface" class="rb-val">+0</span>
+          </div>
+          <div class="rb-item">
+            <span>Fullscreen Exit</span>
+            <span id="rb-fs" class="rb-val">+0</span>
+          </div>
+          <div class="rb-item">
+            <span>Loud Noise</span>
+            <span id="rb-noise" class="rb-val">+0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dummy Exam Content -->
+      <div class="exam-content">
+        <div class="exam-q-header">
+          <span class="q-badge">Q1 of 5</span>
+          <span class="q-marks">10 Marks</span>
+        </div>
+        <p class="exam-question">Which data structure uses LIFO (Last In, First Out) ordering principle and is commonly used for function call management in computer programs?</p>
+        <div class="exam-options">
+          <label class="opt"><input type="radio" name="q1" value="a"/> <span>A. Queue</span></label>
+          <label class="opt"><input type="radio" name="q1" value="b"/> <span>B. Stack</span></label>
+          <label class="opt"><input type="radio" name="q1" value="c"/> <span>C. Linked List</span></label>
+          <label class="opt"><input type="radio" name="q1" value="d"/> <span>D. Binary Tree</span></label>
+        </div>
+        <div class="exam-nav">
+          <button class="btn-nav">← Previous</button>
+          <span class="q-progress">1 / 5 answered</span>
+          <button class="btn-nav primary">Next →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT: Monitoring Panel + Audio + Logs -->
+    <section class="panel monitor-panel">
+      <div class="panel-header">
+        <span class="panel-title">MONITORING STATUS</span>
+      </div>
+
+      <!-- Status Cards -->
+      <div class="status-grid">
+        <div class="status-card" id="sc-face">
+          <div class="sc-icon">👤</div>
+          <div class="sc-info">
+            <span class="sc-label">FACE</span>
+            <span class="sc-val" id="scFace">DETECTED</span>
+          </div>
+          <div class="sc-dot ok"></div>
+        </div>
+        <div class="status-card" id="sc-fs">
+          <div class="sc-icon">⛶</div>
+          <div class="sc-info">
+            <span class="sc-label">FULLSCREEN</span>
+            <span class="sc-val" id="scFs">ACTIVE</span>
+          </div>
+          <div class="sc-dot ok"></div>
+        </div>
+        <div class="status-card" id="sc-tab">
+          <div class="sc-icon">⇥</div>
+          <div class="sc-info">
+            <span class="sc-label">TAB FOCUS</span>
+            <span class="sc-val" id="scTab">FOCUSED</span>
+          </div>
+          <div class="sc-dot ok"></div>
+        </div>
+        <div class="status-card" id="sc-noise">
+          <div class="sc-icon">🎙️</div>
+          <div class="sc-info">
+            <span class="sc-label">AUDIO</span>
+            <span class="sc-val" id="scNoise">NORMAL</span>
+          </div>
+          <div class="sc-dot ok"></div>
+        </div>
+        <div class="status-card" id="sc-rec">
+          <div class="sc-icon">⏺</div>
+          <div class="sc-info">
+            <span class="sc-label">RECORDING</span>
+            <span class="sc-val" id="scRec">ACTIVE</span>
+          </div>
+          <div class="sc-dot ok"></div>
+        </div>
+        <div class="status-card" id="sc-activity">
+          <div class="sc-icon">⌨️</div>
+          <div class="sc-info">
+            <span class="sc-label">ACTIVITY</span>
+            <span class="sc-val" id="scActivity">ACTIVE</span>
+          </div>
+          <div class="sc-dot ok"></div>
+        </div>
+      </div>
+
+      <!-- Audio Meter -->
+      <div class="audio-section">
+        <div class="audio-header">
+          <span>AUDIO LEVEL</span>
+          <span id="audioLevel" class="audio-level-val">0 dB</span>
+        </div>
+        <div class="audio-meter">
+          <div id="audioMeterFill" class="audio-meter-fill"></div>
+          <div class="audio-threshold" style="left:60%"></div>
+        </div>
+        <div class="audio-labels">
+          <span>SILENT</span>
+          <span>NORMAL</span>
+          <span>LOUD ⚠️</span>
+        </div>
+        <canvas id="audioWave" width="260" height="40"></canvas>
+      </div>
+
+      <!-- Live Activity Logs -->
+      <div class="logs-header">
+        <span>ACTIVITY LOG</span>
+        <span id="logCount" class="log-count">0 events</span>
+      </div>
+      <div class="log-container" id="logContainer"></div>
+
+      <!-- Download Recording -->
+      <button class="btn-download" id="btnDownload" disabled>
+        ⬇ DOWNLOAD RECORDING
+      </button>
+    </section>
+  </main>
+</div>
+
+<!-- ========== FINAL REPORT SCREEN ========== -->
+<div id="reportScreen" class="screen">
+  <div class="report-container">
+    <div class="report-header">
+      <div class="report-logo">PROCTOR<span class="accent">AI</span></div>
+      <h2>EXAMINATION REPORT</h2>
+      <div id="repStudentName" class="rep-student">—</div>
+      <div id="repExamCode" class="rep-exam">—</div>
+    </div>
+
+    <div class="report-score-wrap">
+      <div class="report-score-circle" id="repScoreCircle">
+        <svg viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="10"/>
+          <circle id="repScoreRing" cx="60" cy="60" r="50" fill="none" stroke="var(--cyan)" stroke-width="10"
+            stroke-dasharray="314" stroke-dashoffset="314" stroke-linecap="round" transform="rotate(-90,60,60)"/>
+        </svg>
+        <div class="rep-score-inner">
+          <span id="repScore" class="rep-score-num">0</span>
+          <span class="rep-score-label">RISK</span>
+        </div>
+      </div>
+      <div class="rep-verdict">
+        <div id="repVerdict" class="verdict-badge safe">VERIFIED SAFE</div>
+        <div class="rep-stats-row">
+          <div class="rs"><span id="repWarnings">0</span><label>WARNINGS</label></div>
+          <div class="rs"><span id="repEvents">0</span><label>EVENTS</label></div>
+          <div class="rs"><span id="repDuration">—</span><label>DURATION</label></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="report-breakdown">
+      <h3>VIOLATION BREAKDOWN</h3>
+      <div class="rb-grid" id="repBreakdown"></div>
+    </div>
+
+    <div class="report-timeline">
+      <h3>ACTIVITY TIMELINE</h3>
+      <div id="repTimeline" class="timeline-list"></div>
+    </div>
+
+    <div class="report-evidence">
+      <h3>PHOTOGRAPHIC EVIDENCE</h3>
+      <div id="repEvidence" class="evidence-grid"></div>
+    </div>
+
+    <div class="report-actions">
+      <button class="btn-action" id="btnDownloadReport">📄 DOWNLOAD REPORT</button>
+      <button class="btn-action" id="btnDownloadEvidence">📸 DOWNLOAD EVIDENCE</button>
+      <button class="btn-action secondary" id="btnNewExam">↺ NEW EXAM</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== TOAST CONTAINER ========== -->
+<div id="toastContainer"></div>
+
+<!-- ========== WARNING OVERLAY ========== -->
+<div id="warningOverlay" class="warning-overlay hidden">
+  <div class="warning-box">
+    <div class="warning-icon">⚠️</div>
+    <div id="warningTitle" class="warning-title">WARNING</div>
+    <div id="warningMsg" class="warning-msg">Suspicious activity detected.</div>
+    <div class="warning-score">Risk Score: <strong id="warningScore">0</strong></div>
+    <button class="btn-dismiss" id="btnDismiss">ACKNOWLEDGE & CONTINUE</button>
+  </div>
+</div>
+
+<script src="js/script.js"></script>
+</body>
+</html>
